@@ -18,6 +18,7 @@ n_epochs: 200      # How often do you want to display output images during train
 batchSize: 30        # size of the batches
 dataroot: 'data/Short-term'     # root directory of the dataset
 val_dataroot: 'data/Short-term'
+checkpoint: '/checkpoint/Short_best_netG_A2B.pth'
 #lr: 0.001                   # initial learning rate
 lr: 0.0001
 decay_epoch: 20            # epoch to start linearly decaying the learning rate to 0
