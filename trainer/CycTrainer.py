@@ -11,7 +11,6 @@ from .utils import LambdaLR,Logger,ReplayBuffer
 from .utils import weights_init_normal,get_config
 from .datasets import ImageDataset,ValDataset, EyeDataset, EyeDataset1
 from Model.CycleGan import *
-import Model.CycleGan_ as mm
 from .utils import Resize,ToTensor,smooothing_loss
 from .utils import Logger
 from .reg import Reg
@@ -89,23 +88,23 @@ class Cyc_Trainer():
                         ToTensor(),
                         Resize(size_tuple=(config['size'], config['size']))]
 
-        self.dataloader = DataLoader(EyeDataset(config['dataroot'], level, transforms_1=transforms_1, transforms_2=transforms_2, unaligned=False, type='train'),
-                                batch_size=config['batchSize'], shuffle=True, num_workers=config['n_cpu'], drop_last=True)
+        # self.dataloader = DataLoader(EyeDataset(config['dataroot'], level, transforms_1=transforms_1, transforms_2=transforms_2, unaligned=False, type='train'),
+        #                         batch_size=config['batchSize'], shuffle=True, num_workers=config['n_cpu'], drop_last=True)
         val_transforms = [ToTensor(),
                           Resize(size_tuple = (config['size'], config['size']))]
         self.transforms = val_transforms
 
-        self.val_data = DataLoader(EyeDataset(config['val_dataroot'], 0, transforms_1 =val_transforms, transforms_2=None, unaligned=False, type='val'),
-                                batch_size=1, shuffle=False, num_workers=config['n_cpu'])
+        # self.val_data = DataLoader(EyeDataset(config['val_dataroot'], 0, transforms_1 =val_transforms, transforms_2=None, unaligned=False, type='val'),
+        #                         batch_size=1, shuffle=False, num_workers=config['n_cpu'])
 
         self.test_data = DataLoader(
             EyeDataset(config['val_dataroot'], 0, transforms_1=val_transforms, transforms_2=None, unaligned=False,
-                       type='test'),
+                       type='exter'),
             batch_size=1, shuffle=False, num_workers=config['n_cpu'])
 
 
        # Loss plot
-        self.logger = Logger(config['name'],config['port'],config['n_epochs'], len(self.dataloader))
+       #  self.logger = Logger(config['name'],config['port'],config['n_epochs'], len(self.dataloader))
 
     def train(self):
         ###### Training ######
@@ -330,18 +329,6 @@ class Cyc_Trainer():
                 acc = count/num
                 print ('Val MAE:',MAE/num, "acc:", acc, "best_acc", best_acc)
 
-            # with torch.no_grad():
-            #     MAE = 0
-            #     num = 0
-            #     for i, batch in enumerate(self.test_data):
-            #         real_A = Variable(self.test_input_A.copy_(batch['A']))
-            #         real_B = Variable(self.test_input_B.copy_(batch['B'])).detach().cpu().numpy().squeeze()
-            #         fake_B = self.netG_A2B(real_A).detach().cpu().numpy().squeeze()
-            #         mae = self.MAE(fake_B, real_B)
-            #         MAE += mae
-            #         num += 1
-
-                # print('Val MAE:', MAE / num)
 
             if not os.path.exists(self.config["save_root"]):
                 os.makedirs(self.config["save_root"])
@@ -351,173 +338,9 @@ class Cyc_Trainer():
                 torch.save(self.netG_A2B.state_dict(), self.config['save_root'] + 'best_netG_A2B.pth')
                 best_acc = acc
 
-    def squeeze(self):
-        idx = 0
-        self.netG_A2B.load_state_dict(torch.load('/public/lay/Reg-GAN/output/Cyc/NC+R_32/best_netG_A2B1.pth'))
-        # self.netG_A2B.load_state_dict(torch.load('/public/lay/Reg-GAN/output/threemonth/best_netG_A2B.pth'))
-        # self.netG_A2B.load_state_dict(torch.load('/public/lay/Reg-GAN/output/oneyear/best_netG_A2B.pth'))
-        root = r'/public/lay/长期随访/3-协和-120/1-AMD/18170321-R02b_test_12/18170321_20210406_082139_3DOCT00_R_000.jpg'
-        image = cv2.imread(root, 0)
-        image = (image - 127.5) / 127.5
-        transform1 = transforms.Compose(self.transforms)
-        image = transform1(image.astype(np.float32)).unsqueeze(0).cuda('cuda:0')
-        fakeimage, _ = self.netG_A2B(image)
-        fakeimage = fakeimage.detach().cpu().numpy().squeeze()
-
-        norm_image = cv2.normalize(fakeimage, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX,
-                                   dtype=cv2.CV_32F)
-        image_ = image.detach().cpu().numpy().squeeze().squeeze()
-        norm_image1 = cv2.normalize(image_, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX,
-                                   dtype=cv2.CV_32F)
-        cv2.imwrite(f'/public/lay/长期随访/序列/onemonth/{idx}.jpg', norm_image)
-        # cv2.imwrite(f'/public/lay/长期随访/序列/oneyear/{idx}.jpg', norm_image)
-        # cv2.imwrite(f'/public/lay/长期随访/序列/threemonth/{idx}.jpg', norm_image)
-        cv2.imwrite(f'/public/lay/长期随访/序列/before/{idx}.jpg', norm_image1)
-
-    def draw_test(self):
-        self.netG_A2B.load_state_dict(torch.load(self.config['save_root'] + 'best_netG_A2B_0.05544.pth'))
-
-        data = []
-        with torch.no_grad():
-                for i, batch in enumerate(self.test_data):
-                    real_A = Variable(self.test_input_A.copy_(batch['A']))
-                    class_label = batch['class_label']
-                    eye = batch['eye']
-                    pre_label = self.netG_A2B(real_A)
-                    pre_label = pre_label.detach().cpu().numpy().squeeze()
-                    data.append([eye.item(), class_label.item(), pre_label.item()])
-        np.save('./threemonth.npy', data)
-
-    def shap(self, root):
-        self.netG_A2B.load_state_dict(torch.load(self.config['save_root'] + 'best_netG_A2B1.pth'))
-        T = transforms.Compose(self.transforms)
-        idxs = np.arange(0, len(os.listdir(root)), 12)
-        index_names = ['Effective', 'Ineffective']
-        for idx in idxs:
-            shample, e = [], None
-            for num, i in enumerate(range((idx // 12) * 12, (idx // 12) * 12 + 12)):
-                img = cv2.imread(os.path.join(root, f'{i}.jpg'), 0)
-                real_As = Variable(self.test_input_A.copy_(T(img).unsqueeze(0)))
-                shample.append(real_As.clone())
-            shamples = torch.cat(shample, dim=0)
-            e = shap.GradientExplainer((self.netG_A2B, self.netG_A2B.classifier_body[2]), shamples)
-            for num, real_A in enumerate(shample):
-                shap_values = e.shap_values(real_A, nsamples=200)  # 1,128,32,32,2
-                shap_values = [shap_values[:, :, :, :, i] for i in range(1, 3)]
-                shap_values = [np.swapaxes(np.swapaxes(s, 2, 3), 1, -1) for s in shap_values]
-                for j in range(2):
-                    shap_values[j][np.where(abs(shap_values[j]) < 0.02)] = 0
-                real_A = real_A.cpu().numpy().squeeze(0)
-                shap.image_plot(shap_values, real_A, index_names, show=False)
-                plt.savefig(f'/public/lay/Reg-GAN/output/onemonth/cam_/{(idx // 12)*12+num}.png', dpi=1000)
-                plt.close()
-
-    def avgshap(self,root):
-        self.netG_A2B.load_state_dict(torch.load(self.config['save_root'] + 'best_netG_A2B_.pth'))
-        T = transforms.Compose(self.transforms)
-        idxs =[602, 603]
-        index_names = ['Effective', 'Ineffective']
-        imgname = os.listdir(root)
-        image, shap_ = [], []
-        for idx in idxs:
-            shample, e = [], None
-            np.random.shuffle(imgname)
-            for i in imgname[:12]:
-                img = cv2.imread(os.path.join(root, i), 0)
-                real_A = Variable(self.test_input_A.copy_(T(img).unsqueeze(0)))
-                shample.append(real_A.clone())
-                print(i)
-            shample = torch.cat(shample, dim=0)
-            e = shap.GradientExplainer((self.netG_A2B, self.netG_A2B.classifier_body[2]), shample)
-            img = cv2.imread(os.path.join(root, f'{idx}.jpg'), 0)
-            real_A = Variable(self.test_input_A.copy_(T(img).unsqueeze(0)))
-            shap_values = e.shap_values(real_A, nsamples=200)  # 1,128,32,32,2
-            shap_values = [shap_values[:, :, :, :, i] for i in range(1, 3)]
-            shap_values = [np.swapaxes(np.swapaxes(s, 2, 3), 1, -1) for s in shap_values]
-            shap_valuess = shap_values.copy()
-            # for j in range(2):
-            #     shap_valuess[j][np.where(abs(shap_valuess[j]) < 0.02)] = 0
-            real_A = real_A.cpu().numpy().squeeze(0)
-            image.append(real_A.copy())
-            shap_.append(shap_values.copy())
-        np.save('image.npy',image)
-        np.save('shap_values.npy',shap_)
-        return
-
-    def avgshap1(self, root):
-        self.netG_A2B.load_state_dict(torch.load(self.config['save_root'] + 'best_netG_A2B_.pth'))
-        T = transforms.Compose(self.transforms)
-        idxs = [83*12]
-        index_names = ['Effective', 'Ineffective']
-        for idx in idxs:
-            image, shap_ = [], []
-            shample, e = [], None
-            for i in range((idx // 12) * 12, (idx // 12) * 12 + 7):
-                    img = cv2.imread(os.path.join(root, f'{i}.jpg'), 0)
-                    real_As = Variable(self.test_input_A.copy_(T(img).unsqueeze(0)))
-                    shample.append(real_As.clone())
-            shamples = torch.cat(shample, dim=0)
-            e = shap.GradientExplainer((self.netG_A2B, self.netG_A2B.classifier_body[2]), shamples)
-            for real_A in shample:
-                shap_values = e.shap_values(real_A, nsamples=200)  # 1,128,32,32,2
-                shap_values = [shap_values[:, :, :, :, i] for i in range(1, 3)]
-                shap_values = [np.swapaxes(np.swapaxes(s, 2, 3), 1, -1) for s in shap_values]
-                real_A = real_A.cpu().numpy().squeeze(0)
-                image.append(real_A.copy())
-                shap_.append(shap_values.copy())
-            images = np.mean(image, axis=0)
-            shap_ = np.mean(shap_, axis=0)
-            print(images.shape, image[0].shape)
-            # images[0][:100,:100] = image[0][0][:100,:100]
-            shap_values = [s for s in shap_]
-            for j in range(2):
-                shap_values[j][np.where(abs(shap_values[j]) < 0.01)] = 0
-            shap.image_plot(shap_values, images, index_names, show=False)
-            plt.savefig(f'/public/lay/Reg-GAN/output/onemonth/image_P/{idx//12}.png', dpi=1000)
-            print(idx//12)
-            plt.close()
-
-        return
-
-    def avgcam(self, root):
-        self.netG_A2B.load_state_dict(torch.load(self.config['save_root'] + 'best_netG_A2B_.pth'))
-        model_features = []
-        netG_A2 = list(self.netG_A2B.children())
-        model_features += netG_A2[:-4]
-        model_features += netG_A2[-3]
-        model_features = nn.Sequential(*model_features)
-        fc_weights1 = self.netG_A2B.state_dict()['classifier_tail.0.weight'].cpu().numpy()
-        fc_weights2 = self.netG_A2B.state_dict()['classifier_tail.2.weight'].cpu().numpy()
-        self.netG_A2B.eval()
-        T = transforms.Compose(self.transforms)
-        name = sorted(os.listdir('/public/lay/长期随访/before'))
-        A = np.zeros((len(name), 3, 16, 16))
-        B = []
-        with torch.no_grad():
-            for i in range(len(name)):
-                img = cv2.imread(os.path.join(root, f'{name[i]}'), 0)
-                real_A = Variable(self.test_input_A.copy_(T(img).unsqueeze(0)))
-                pre_label = self.netG_A2B(real_A)
-                features = model_features(real_A).detach().cpu().numpy()
-                h_x = torch.nn.functional.softmax(pre_label, dim=1).data.squeeze()
-                probs, idx = h_x.sort(0, True)  # 输出概率升序排列
-                idx = idx.cpu().numpy()  # [1, 0]
-                CAMs = returnCAM(features, fc_weights1, fc_weights2, [idx[0]])
-                A[int(name[i][:-4])] = CAMs
-                img = real_A.detach().cpu().squeeze(0).squeeze(0).numpy()
-                heatmap = cv2.applyColorMap(cv2.resize(CAMs[0], (256, 256)), cv2.COLORMAP_JET)
-                img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-                result = heatmap * 0.5 + img * 0.5
-                cv2.imwrite(f'/public/lay/Reg-GAN/output/图像/cam/{name[i]}', cv2.resize(result,(512,512)))
-                # cv2.imwrite(f'/public/lay/Reg-GAN/output/图像/原图/{name[i]}', cv2.resize(img,(512,512)))
-            np.save('cam.npy',A)
-            return
-
     def test(self,):
-        self.netG_A2B.load_state_dict(torch.load(self.config['save_root'] + 'newbest_netG_A2B.pth'))
+        self.netG_A2B.load_state_dict(torch.load(self.config['checkpoint']))
         with torch.no_grad():
-                MAE = 0
-                PSNR = 0
                 SSIM = 0
                 num = 0
                 count = 0
@@ -530,7 +353,6 @@ class Cyc_Trainer():
                     class_label = batch['class_label']
                     fake_B,  pre_label = self.netG_A2B(real_A)
                     fake_B = fake_B.detach().cpu().numpy().squeeze()
-                    mae = self.MAE(fake_B, real_B)
                     real_A_ = real_A.detach().cpu().numpy().squeeze()
                     norm_image = cv2.normalize(fake_B, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX,
                                                dtype=cv2.CV_32F)
@@ -538,23 +360,17 @@ class Cyc_Trainer():
                                                dtype=cv2.CV_32F)
                     norm_image2 = cv2.normalize(real_B, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX,
                                                dtype=cv2.CV_32F)
-                    print(os.path.join(self.config['image_save'], batch["name"][0]))
                     cv2.imwrite(os.path.join(self.config['image_save'], batch["name"][0]), norm_image)  # 预测图像
                     cv2.imwrite(os.path.join(self.config['image_save1'], batch["name"][0]), norm_image1) # 干预前图像
                     cv2.imwrite(os.path.join(self.config['image_save2'], batch["name"][0]), norm_image2) # 干预后图像
                     pre_label = pre_label.detach().cpu().numpy().squeeze()
                     count += sum((pre_label.argmax() == class_label)).item()
-                    psnr = self.PSNR(fake_B,real_B)
                     ssim = compare_ssim(fake_B,real_B, data_range=fake_B.max() - fake_B.min())
-                    MAE += mae
-                    PSNR += psnr
                     SSIM += ssim
                     num += 1
                     class_label_.append(class_label.item())
                     pre_label_.append(pre_label)
                     pre_class_.append(pre_label.argmax())
-                print ('MAE:',MAE/num)
-                print ('PSNR:',PSNR/num)
                 print ('SSIM:',SSIM/num)
                 print('acc', count/num)
                 self.draw(class_label_, pre_label_)
@@ -709,104 +525,7 @@ class Cyc_Trainer():
         print(sen)
         print(spe)
 
-    def PSNR(self,fake,real):
-       x,y = np.where(real!= -1)# Exclude background
-       mse = np.mean(((fake[x][y]+1)/2. - (real[x][y]+1)/2.) ** 2 )
-       if mse < 1.0e-10:
-          return 100
-       else:
-           PIXEL_MAX = 1
-           return 20 * np.log10(PIXEL_MAX / np.sqrt(mse))
 
-    def MAE(self,fake,real):
-        x,y = np.where(real!= -1)  # Exclude background
-        mae = np.abs(fake[x,y]-real[x,y]).mean()
-        return mae/2     #from (-1,1) normaliz  to (0,1)
-
-    def save_deformation(self,defms,root):
-        heatmapshow = None
-        defms_ = defms.data.cpu().float().numpy()
-        dir_x = defms_[0]
-        dir_y = defms_[1]
-        x_max,x_min = dir_x.max(),dir_x.min()
-        y_max,y_min = dir_y.max(),dir_y.min()
-        dir_x = ((dir_x-x_min)/(x_max-x_min))*255
-        dir_y = ((dir_y-y_min)/(y_max-y_min))*255
-        tans_x = cv2.normalize(dir_x, heatmapshow, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-        #tans_x[tans_x<=150] = 0
-        tans_x = cv2.applyColorMap(tans_x, cv2.COLORMAP_JET)
-        tans_y = cv2.normalize(dir_y, heatmapshow, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-        #tans_y[tans_y<=150] = 0
-        tans_y = cv2.applyColorMap(tans_y, cv2.COLORMAP_JET)
-        gradxy = cv2.addWeighted(tans_x, 0.5,tans_y, 0.5, 0)
-
-        cv2.imwrite(root, gradxy)
-
-    def softmax(self, x):
-        ex = np.exp(x)
-        return ex / ex.sum()
-
-    def cam(self):
-        self.netG_A2B.load_state_dict(torch.load(self.config['save_root'] + 'best_netG_A2B.pth'))
-        # print(nn.Sequential(*list(self.netG_A2B.children())[:-1]))
-        # model_features = nn.Sequential(*list(self.netG_A2B.children())[:-3])
-        model_features = []
-        netG_A2 = list(self.netG_A2B.children())
-        model_features += netG_A2[:-4]
-        model_features += netG_A2[-3]
-        # print(model_features)
-        model_features =  nn.Sequential(*model_features)
-        # model_tail = netG_A2[-2][0]
-        fc_weights1 = self.netG_A2B.state_dict()['classifier_tail.0.weight'].cpu().numpy()
-        fc_weights2 = self.netG_A2B.state_dict()['classifier_tail.2.weight'].cpu().numpy()
-        class_ = {0: 'wending', 1: 'xiajiang', 2:'tisheng'}
-        self.netG_A2B.eval()
-        with torch.no_grad():
-            for i, batch in enumerate(self.dataloader):
-                real_A = Variable(self.test_input_A.copy_(batch['A']))
-                real_B = Variable(self.test_input_B.copy_(batch['B'])).detach().cpu().numpy().squeeze()
-
-                pre_label = self.netG_A2B(real_A)
-                features = model_features(real_A).detach().cpu().numpy()
-                h_x = torch.nn.functional.softmax(pre_label, dim=1).data.squeeze()
-                probs, idx = h_x.sort(0, True)  # 输出概率升序排列
-                idx = idx.cpu().numpy()  # [1, 0]
-                CAMs = returnCAM(features, fc_weights1,fc_weights2,[idx[0]])
-
-                img = real_A.detach().cpu().squeeze(0).squeeze(0).numpy()
-                img = cv2.normalize(img, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX,
-                                           dtype=cv2.CV_32F)
-                img1 = cv2.normalize(real_B, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX,
-                                    dtype=cv2.CV_32F)
-
-                height, width = img.shape
-                img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-                heatmap = cv2.applyColorMap(cv2.resize(CAMs[0], (width, height)), cv2.COLORMAP_JET)
-
-                result = heatmap * 0.5 + img * 0.5
-                #
-                # CAM_RESULT_PATH = rf'{self.config["image_save"]}/{class_[idx[0]]}_{batch["name"][0]}.jpg'  # CAM结果的存储地址
-                # CAM_RESULT_PATH1 = rf'{self.config["image_save1"]}/{class_[idx[0]]}_{batch["name"][0]}.jpg' # 原图
-                # CAM_RESULT_PATH2 = rf'{self.config["image_save2"]}/{class_[idx[0]]}_{batch["name"][0]}.jpg' #后面的图
-
-                # cv2.imwrite(CAM_RESULT_PATH, result)
-                # cv2.imwrite(CAM_RESULT_PATH1, img)
-                # cv2.imwrite(CAM_RESULT_PATH2, img1)
-
-
-def returnCAM(feature_conv, weight_softmax1,weight_softmax2,class_idx):
-    b, c, h, w = feature_conv.shape  # 1,2048,7,7
-    output_cam = []
-    for idx in range(3):  # 输出每个类别的预测效果
-        cam = weight_softmax1.dot(feature_conv.reshape((c, h*w)))
-        cam = weight_softmax2[idx].dot(cam)
-        # (1, 2048) * (2048, 7*7) -> (1, 7*7)
-        cam = cam.reshape(h, w)
-        cam_img = (cam - cam.min()) / (cam.max() - cam.min())  # Normalize
-        cam_img = np.uint8(255 * cam_img)
-        output_cam.append(cam_img)
-    # output_cam[0][np.where(output_cam[0] <150)] = 0
-    return output_cam
 
 
 class fundus_Trainer():

@@ -4,10 +4,10 @@ bidirect: False #Unidirectional or bidirectional
 regist: True   # With or without registration network
 noise_level: 1  #  noise level
 port: 6019   #  port parameters
-save_root: '/output/Short-term/'
-image_save: '/output/Short-term/pred'
-image_save1: '/output/Short-term/before'
-image_save2: '/output/Short-term/after'
+save_root: 'output/Long-term/'
+image_save: 'output/Long-term/pred'
+image_save1: 'output/Long-term/before'
+image_save2: 'output/Long-term/after'
 # lamda weight
 Adv_lamda: 1
 Cyc_lamda: 10
@@ -16,9 +16,9 @@ Smooth_lamda: 10
 epoch: 0        # starting epoch
 n_epochs: 200      # How often do you want to display output images during training
 batchSize: 30        # size of the batches
-dataroot: 'data/Short-term'     # root directory of the dataset
-val_dataroot: 'data/Short-term'
-checkpoint: '/checkpoint/Short_best_netG_A2B.pth'
+dataroot: 'data/Long-term'     # root directory of the dataset
+val_dataroot: 'data/Long-term'
+checkpoint: 'checkpoint/Long_best_netG_A2B.pth'
 #lr: 0.001                   # initial learning rate
 lr: 0.0001
 decay_epoch: 20            # epoch to start linearly decaying the learning rate to 0
