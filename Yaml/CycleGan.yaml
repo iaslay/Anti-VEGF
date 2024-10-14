@@ -1,0 +1,35 @@
+#####
+name: CycleGan
+bidirect: False #Unidirectional or bidirectional
+regist: True   # With or without registration network
+noise_level: 1  #  noise level
+port: 6019   #  port parameters
+save_root: '/public/lay/Reg-GAN/output/newonemonth/'
+image_save: '/public/lay/Reg-GAN/output/threemonth/image_P/pred'
+image_save1: '/public/lay/Reg-GAN/output/threemonth/image_P/before'
+image_save2: '/public/lay/Reg-GAN/output/threemonth/image_P/after'
+image_save3: '/public/lay/Reg-GAN/output/onemonth/image_P/after'
+image_save4: '/public/lay/Reg-GAN/output/Cyc/threemonth/after/'
+# lamda weight
+Adv_lamda: 1
+Cyc_lamda: 10
+Corr_lamda: 20
+Smooth_lamda: 10
+ # 1. all_NC+R_32 DMT 32
+#  NC+R 没有DMT 32
+# 3. test 没有DMT tranformer 28
+# 4, onemonth DMT tranformer 28
+epoch: 0        # starting epoch
+n_epochs: 200      # How often do you want to display output images during training
+batchSize: 30        # size of the batches
+dataroot: '/public/lay/reg_result/AllOneMonth'     # root directory of the dataset
+val_dataroot: '/public/lay/reg_result/AllOneMonth'
+#lr: 0.001                   # initial learning rate
+lr: 0.0001
+decay_epoch: 20            # epoch to start linearly decaying the learning rate to 0
+size: 256                # size of the data crop
+input_nc: 1         
+output_nc: 1                  
+cuda: True                
+n_cpu: 1
+
