@@ -9,7 +9,7 @@ from torch.autograd import Variable
 import os
 from .utils import LambdaLR,Logger,ReplayBuffer
 from .utils import weights_init_normal,get_config
-from .datasets import ImageDataset,ValDataset, EyeDataset, fundusDataset, My_dataset,EyeDataset1
+from .datasets import ImageDataset,ValDataset, EyeDataset, EyeDataset1
 from Model.CycleGan import *
 import Model.CycleGan_ as mm
 from .utils import Resize,ToTensor,smooothing_loss
@@ -1116,10 +1116,8 @@ class fundus_Trainer():
 
     def test(self,):
         self.netG_A2B.load_state_dict(torch.load(self.config['save_root'] + 'best_netG_A2B.pth'))
-        # self.R_A.load_state_dict(torch.load(self.config['save_root'] + 'Regist.pth'))
+
         with torch.no_grad():
-                MAE = 0
-                PSNR = 0
                 SSIM = 0
                 num = 0
                 count = 0
@@ -1138,18 +1136,13 @@ class fundus_Trainer():
                     cv2.imwrite(os.path.join(self.config['image_save'],batch["name"][0]), norm_image)
                     pre_label = pre_label.detach().cpu().numpy().squeeze()
                     count += sum((pre_label.argmax() == class_label)).item()
-                    mae = self.MAE(fake_B,real_B)
-                    psnr = self.PSNR(fake_B,real_B)
                     ssim = compare_ssim(fake_B,real_B, data_range=fake_B.max() - fake_B.min())
-                    MAE += mae
-                    PSNR += psnr
                     SSIM += ssim
                     num += 1
                     class_label_.append(class_label.item())
                     pre_label_.append(pre_label)
                     pre_class_.append(pre_label.argmax())
-                print ('MAE:',MAE/num)
-                print ('PSNR:',PSNR/num)
+
                 print ('SSIM:',SSIM/num)
                 print('acc', count/num)
                 self.draw(class_label_, pre_label_)
@@ -1238,69 +1231,3 @@ class fundus_Trainer():
             spe.append(spe1)
         print(sen)
         print(spe)
-
-    def PSNR(self,fake,real):
-       x,y = np.where(real!= -1)# Exclude background
-       mse = np.mean(((fake[x][y]+1)/2. - (real[x][y]+1)/2.) ** 2 )
-       if mse < 1.0e-10:
-          return 100
-       else:
-           PIXEL_MAX = 1
-           return 20 * np.log10(PIXEL_MAX / np.sqrt(mse))
-
-
-    def MAE(self,fake,real):
-        x,y = np.where(real!= -1)  # Exclude background
-        mae = np.abs(fake[x,y]-real[x,y]).mean()
-        return mae/2     #from (-1,1) normaliz  to (0,1)
-
-
-    def save_deformation(self,defms,root):
-        heatmapshow = None
-        defms_ = defms.data.cpu().float().numpy()
-        dir_x = defms_[0]
-        dir_y = defms_[1]
-        x_max,x_min = dir_x.max(),dir_x.min()
-        y_max,y_min = dir_y.max(),dir_y.min()
-        dir_x = ((dir_x-x_min)/(x_max-x_min))*255
-        dir_y = ((dir_y-y_min)/(y_max-y_min))*255
-        tans_x = cv2.normalize(dir_x, heatmapshow, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-        #tans_x[tans_x<=150] = 0
-        tans_x = cv2.applyColorMap(tans_x, cv2.COLORMAP_JET)
-        tans_y = cv2.normalize(dir_y, heatmapshow, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-        #tans_y[tans_y<=150] = 0
-        tans_y = cv2.applyColorMap(tans_y, cv2.COLORMAP_JET)
-        gradxy = cv2.addWeighted(tans_x, 0.5,tans_y, 0.5, 0)
-
-        cv2.imwrite(root, gradxy)
-
-    def cam(self):
-        self.netG_A2B.load_state_dict(torch.load(self.config['save_root'] + 'best_netG_A2B.pth'))
-        target_layers = [self.netG_A2B.classifier_body]
-        targets = None
-        cam_algorithm = GradCAM
-        self.netG_A2B.eval()
-        for i, batch in enumerate(self.val_data):
-            real_A = Variable(self.test_input_A.copy_(batch['A']))
-            fundus = Variable(self.test_input_C.copy_(batch['fundus']))
-            with cam_algorithm(model=self.netG_A2B,
-                               target_layers=target_layers) as cam:
-                grayscale_cam = cam(input_tensor=real_A,
-                                    targets=targets,
-                                    aug_smooth=False,
-                                    eigen_smooth=False)
-                grayscale_cam = grayscale_cam[0, :]
-                input_img = cv2.imread(os.path.join(f'{self.config["dataroot"]}/before', f'{batch["name"][0]}'), 1)
-                input_img = cv2.resize(input_img, (256, 256))
-                cam_image = show_cam_on_image(cv2.normalize(input_img, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX,
-                                               dtype=cv2.CV_32F), grayscale_cam, use_rgb=True)
-                cam_image = cv2.cvtColor(cam_image, cv2.COLOR_RGB2BGR)
-                cv2.imwrite(os.path.join(self.config['image_save1'], batch["name"][0]), cam_image)
-
-if __name__ == '__main__':
-    root = r'/public/lay/长期随访/3-协和-120/1-AMD/18170321-R02b/18170321_20210406_082139_3DOCT00_R_000.jpg'
-    model = Generator(1, 1).cuda('cuda:0')
-    image = cv2.imread(root,0)
-    image = (image - 127.5) / 127.5
-    image = torch.tensor(image).unsqueeze(0).cuda('cuda:0')
-    print(image.shape)
