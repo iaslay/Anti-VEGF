@@ -99,7 +99,7 @@ class Cyc_Trainer():
 
         self.test_data = DataLoader(
             EyeDataset(config['val_dataroot'], 0, transforms_1=val_transforms, transforms_2=None, unaligned=False,
-                       type='exter'),
+                       type='test'),
             batch_size=1, shuffle=False, num_workers=config['n_cpu'])
 
 
@@ -738,7 +738,6 @@ class fundus_Trainer():
 
                         self.optimizer_D_B.step()
                         ###################################
-
 
 
                 else:                  # s dir :NC
