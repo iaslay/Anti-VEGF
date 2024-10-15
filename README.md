@@ -21,7 +21,7 @@ Download pretrained models from [here](https://drive.google.com/drive/folders/1
 
 ### **Data preparation**
 
-Download data from [here](https://drive.google.com/drive/folders/1PCvzPVVAsoKFG6kjGUEoqZ_JRbuJpYhR?usp=drive_link) and put them in folder `data/`
+Download data from [here](https://drive.google.com/drive/folders/1LcpJJKrzsnMEKD5PMwC9Rk3WSLMHhM_D?usp=sharing) and put them in folder `data/`
 
 ## Testing
 
