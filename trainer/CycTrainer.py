@@ -525,6 +525,64 @@ class Cyc_Trainer():
         print(sen)
         print(spe)
 
+    def democam(self):
+        self.netG_A2B.load_state_dict(torch.load('./checkpoint/Classifier_Short_best_netG_A2B.pth'))
+        model_features = []
+        netG_A2 = list(self.netG_A2B.children())
+        model_features += netG_A2[:-3]
+        model_features += netG_A2[-2]
+        model_features = nn.Sequential(*model_features)
+        fc_weights1 = self.netG_A2B.state_dict()['classifier_tail.0.weight'].cpu().numpy()
+        fc_weights2 = self.netG_A2B.state_dict()['classifier_tail.2.weight'].cpu().numpy()
+        fc_weights3 = self.netG_A2B.state_dict()['classifier_tail.4.weight'].cpu().numpy()
+        self.netG_A2B.eval()
+        T = transforms.Compose(self.transforms)
+        A = np.zeros((3, 16, 16))
+        with torch.no_grad():
+            img = cv2.imread(rf'./data/Classifier/Short-term/before/3896.jpg', 0)
+            real_A = Variable(self.test_input_A.copy_(T(img).unsqueeze(0)))
+            _, pre_label = self.netG_A2B(real_A)
+            features = model_features(real_A).detach().cpu().numpy()
+            h_x = torch.nn.functional.softmax(pre_label, dim=1).data.squeeze()
+            CAMs = returnCAM(features, fc_weights1, fc_weights2, fc_weights3)
+            img = real_A.detach().cpu().squeeze(0).squeeze(0).numpy()
+            img = cv2.normalize(img, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX,dtype=cv2.CV_32F)
+            height, width = img.shape
+            img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+            CAMs[2][CAMs[2] < 150] = 0
+            heatmap = cv2.applyColorMap(cv2.resize(CAMs[2], (width, height)), cv2.COLORMAP_JET)
+            result = heatmap * 0.5 + img * 0.5
+            result = cv2.flip(cv2.transpose(result), 1)
+            cv2.imwrite('demoCAM.jpg', result)
+
+    def demoshap(self):
+        index_names = ['Effective', 'Ineffective']
+        self.netG_A2B.load_state_dict(torch.load('./checkpoint/Classifier_Mid_best_netG_A2B.pth'))
+        T = transforms.Compose(self.transforms)
+        imagename = sorted(os.listdir('./data/Classifier/Mid-term/before'))
+        number = len(imagename)
+        idx, shample = 166, []
+        for i in range(idx+1, idx+9):
+            img = cv2.imread(os.path.join('./data/Classifier/Mid-term/before', imagename[i]), 0)
+            real_A = Variable(self.test_input_A.copy_(T(img).unsqueeze(0)))
+            shample.append(real_A.clone())
+        shamples = torch.cat(shample, dim=0)
+        e = shap.GradientExplainer((self.netG_A2B, self.netG_A2B.classifier_body[2]), shamples)
+        img = cv2.imread(os.path.join('./data/Classifier/Mid-term/before', imagename[idx]), 0)
+        real_A = Variable(self.test_input_A.copy_(T(img).unsqueeze(0)))
+        shap_values = e.shap_values(real_A, nsamples=200)  # 1,128,32,32,2
+        shap_values = [shap_values[:, :, :, :, i] for i in range(2, 0, -1)]
+        shap_values = [np.swapaxes(np.swapaxes(s, 2, 3), 1, -1) for s in shap_values]
+        for j in range(2):
+            shap_values[j][np.where(abs(shap_values[j]) < 0.01)] = 0
+            shap_values[j] = np.rot90(shap_values[j], 3, axes=(1, 2))
+
+        real_A = real_A.cpu().numpy().squeeze(0).squeeze(0)
+        # print(real_A.shape)
+        real_A = cv2.flip(cv2.transpose(real_A), 1).reshape(1, 256, 256)
+        shap.image_plot(shap_values, real_A, index_names, show=False)
+        plt.savefig(f'demoshap.png', dpi=1000)
+        plt.close()
 
 
 
@@ -682,4 +740,15 @@ class Cyc_Trainer1():
             handles=[positive_line, negative_line],
             loc='upper left')
         plt.savefig(f'{self.config["save_root"]}/figure.png', dpi=1500)
-     
+
+def returnCAM(feature_conv, weight_softmax1, weight_softmax2, weight_softmax3):
+    b, c, h, w = feature_conv.shape  # 1,64,16,16
+    output_cam = []
+    for idx in range(3):
+        cam = weight_softmax2.dot(weight_softmax1[:,:c].dot(feature_conv.reshape((c, h*w))))
+        cam = weight_softmax3[idx].dot(cam)
+        cam = cam.reshape(h, w)
+        cam_img = (cam - cam.min()) / (cam.max() - cam.min())  # Normalize
+        cam_img = np.uint8(255 * cam_img)
+        output_cam.append(cam_img)
+    return output_cam
