@@ -8,6 +8,8 @@
 - `Model/` **contains the model**
 - `Yaml/` **contains options for testing and training**
 - `train.py` **is a file for a quick train or test**
+- `demoCam.py`  **A test program that generates a heat map**
+- `demoShap.py` **A test program that generates a shap values**
 
 ## **Requirements**
 
