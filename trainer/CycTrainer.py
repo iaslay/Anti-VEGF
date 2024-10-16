@@ -478,7 +478,7 @@ class Cyc_Trainer():
         axin.plot(fpr["macro"], tpr["macro"], color='navy', linewidth=1)
         for i, color in zip(range(3), colors):
             axin.plot(fpr[i], tpr[i], color=color, linewidth=1)
-        legend = ax.legend(frameon=False,prop={"family":"Arial"})
+        legend = ax.legend(frameon=False)
         axin.set_xlim([0.0, 0.2])
         axin.set_ylim([0.8, 1.0])
         ax.indicate_inset_zoom(axin)
@@ -528,21 +528,21 @@ class Cyc_Trainer():
 
 
 
-class fundus_Trainer():
+class Cyc_Trainer1():
     def __init__(self, config):
         super().__init__()
         self.config = config
         ## def networks
-        self.netG_A2B = mm.Generator(config['input_nc'], config['output_nc']).cuda('cuda:0')
-        self.netD_B = mm.Discriminator(config['input_nc']).cuda()
+        self.netG_A2B = Generator1(config['input_nc'], config['output_nc']).cuda('cuda:0')
+        self.netD_B = Discriminator(config['input_nc']).cuda()
         self.optimizer_D_B = torch.optim.Adam(self.netD_B.parameters(), lr=config['lr'], betas=(0.5, 0.999))
         if config['regist']:
             self.R_A = Reg(config['size'], config['size'],config['input_nc'],config['input_nc']).cuda()
             self.spatial_transform = Transformer_2D().cuda()
             self.optimizer_R_A = torch.optim.Adam(self.R_A.parameters(), lr=config['lr'], betas=(0.5, 0.999))
         if config['bidirect']:
-            self.netG_B2A = mm.Generator(config['input_nc'], config['output_nc']).cuda()
-            self.netD_A = mm.Discriminator(config['input_nc']).cuda()
+            self.netG_B2A = Generator(config['input_nc'], config['output_nc']).cuda()
+            self.netD_A = Discriminator(config['input_nc']).cuda()
             self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A2B.parameters(), self.netG_B2A.parameters()),lr=config['lr'], betas=(0.5, 0.999))
             self.optimizer_D_A = torch.optim.Adam(self.netD_A.parameters(), lr=config['lr'], betas=(0.5, 0.999))
 
@@ -553,16 +553,14 @@ class fundus_Trainer():
         # Lossess
         self.MSE_loss = torch.nn.MSELoss()
         self.L1_loss = torch.nn.L1Loss()
-        self.classifier_loss = torch.nn.CrossEntropyLoss()
-
+        self.classifier_loss = torch.nn.MSELoss()
+        # self.classifier_loss = torch.nn.CrossEntropyLoss()
         # Inputs & targets memory allocation
         Tensor = torch.cuda.FloatTensor if config['cuda'] else torch.Tensor
         self.input_A = Tensor(config['batchSize'], config['input_nc'], config['size'], config['size'])
         self.input_B = Tensor(config['batchSize'], config['output_nc'], config['size'], config['size'])
-        self.input_C = Tensor(config['batchSize'], 3, 256, 256)
         self.test_input_A = Tensor(1, config['input_nc'], config['size'], config['size'])
         self.test_input_B = Tensor(1, config['output_nc'], config['size'], config['size'])
-        self.test_input_C = Tensor(1, 3, 256, 256)
         self.target_real = Variable(Tensor(1,1).fill_(1.0), requires_grad=False)
         self.target_fake = Variable(Tensor(1,1).fill_(0.0), requires_grad=False)
 
@@ -573,379 +571,114 @@ class fundus_Trainer():
         level = config['noise_level']  # set noise level
 
         transforms_1 = [ToPILImage(),
-                   RandomAffine(degrees=level,translate=[0.02*level, 0.02*level],scale=[1-0.02*level, 1+0.02*level]),
-                   ToTensor(),
-                   Resize(size_tuple = (config['size'], config['size']))]
+                        RandomAffine(degrees=level, translate=[0.02 * level, 0.02 * level],
+                                     scale=[1 - 0.02 * level, 1 + 0.02 * level]),
+                        ToTensor(),
+                        Resize(size_tuple=(config['size'], config['size']))]
 
         transforms_2 = [ToPILImage(),
-                   RandomAffine(degrees=1,translate=[0.02, 0.02],scale=[0.98, 1.02]),
-                   ToTensor(),
-                   Resize(size_tuple = (config['size'], config['size']))]
-        transforms_3 = [ToPILImage(),
                         RandomAffine(degrees=1, translate=[0.02, 0.02], scale=[0.98, 1.02]),
                         ToTensor(),
                         Resize(size_tuple=(config['size'], config['size']))]
 
-        self.dataloader = DataLoader(fundusDataset(config['dataroot'], level, transforms_1=transforms_1, transforms_2=transforms_2, transforms_3=transforms_3,unaligned=False, type='train'),
+        self.dataloader = DataLoader(EyeDataset1(config['dataroot'], level, transforms_1=transforms_1, transforms_2=transforms_2, unaligned=False, type='train'),
                                 batch_size=config['batchSize'], shuffle=True, num_workers=config['n_cpu'], drop_last=True)
         val_transforms = [ToTensor(),
                           Resize(size_tuple = (config['size'], config['size']))]
+        self.transforms = val_transforms
 
-        self.val_data = DataLoader(fundusDataset(config['val_dataroot'], 0, transforms_1 =val_transforms, transforms_2=None,transforms_3=None, unaligned=False, type='val'),
+        self.val_data = DataLoader(EyeDataset1(config['val_dataroot'], 0, transforms_1 =val_transforms, transforms_2=None, unaligned=False, type='test'),
                                 batch_size=1, shuffle=False, num_workers=config['n_cpu'])
+
+        self.test_data = DataLoader(
+            EyeDataset1(config['val_dataroot'], 0, transforms_1=val_transforms, transforms_2=None, unaligned=False,
+                       type='test'),
+            batch_size=1, shuffle=False, num_workers=config['n_cpu'])
 
 
        # Loss plot
-        self.logger = Logger(config['name'],config['port'],config['n_epochs'], len(self.dataloader))
+        #self.logger = Logger(config['name'],config['port'],config['n_epochs'], len(self.dataloader))
 
     def train(self):
         ###### Training ######
-        best_acc, acc = 0, -1
+        best_mae = 100
         for epoch in range(self.config['epoch'], self.config['n_epochs']):
             for i, batch in enumerate(self.dataloader):
                 # Set model input
                 real_A = Variable(self.input_A.copy_(batch['A']))
-                real_B = Variable(self.input_B.copy_(batch['B']))
-                fundus = Variable(self.input_C.copy_(batch['fundus']))
                 class_label = batch['class_label'].cuda()
-                if self.config['bidirect']:   # C dir
-                    if self.config['regist']:    #C + R
-                        self.optimizer_R_A.zero_grad()
-                        self.optimizer_G.zero_grad()
-                        # GAN loss
-                        fake_B,pre_class = self.netG_A2B(real_A)
-                        pred_fake = self.netD_B(fake_B)
-                        loss_GAN_A2B = self.config['Adv_lamda'] * self.MSE_loss(pred_fake, self.target_real)
-
-                        classifier_loss = self.classifier_loss(pre_class, class_label)
-                        fake_A = self.netG_B2A(real_B)
-                        pred_fake = self.netD_A(fake_A)
-                        loss_GAN_B2A = self.config['Adv_lamda'] * self.MSE_loss(pred_fake, self.target_real)
-
-                        Trans = self.R_A(fake_B,real_B)
-                        SysRegist_A2B = self.spatial_transform(fake_B,Trans)
-                        SR_loss = self.config['Corr_lamda'] * self.L1_loss(SysRegist_A2B,real_B)###SR
-                        SM_loss = self.config['Smooth_lamda'] * smooothing_loss(Trans)
-
-                        # Cycle loss
-                        recovered_A = self.netG_B2A(fake_B)
-                        loss_cycle_ABA = self.config['Cyc_lamda'] * self.L1_loss(recovered_A, real_A)
-
-                        recovered_B = self.netG_A2B(fake_A)
-                        loss_cycle_BAB = self.config['Cyc_lamda'] * self.L1_loss(recovered_B, real_B)
-
-                        # Total loss
-                        loss_Total = loss_GAN_A2B + loss_GAN_B2A + loss_cycle_ABA + loss_cycle_BAB + SR_loss +SM_loss+classifier_loss
-                        print("Total loss", loss_Total.item(), 'Gan_A2B', loss_GAN_A2B.item(), 'GAN_B2A', loss_GAN_B2A.item(),
-                              'Cycle_ABA', loss_cycle_ABA.item(), 'Cycle_BAB', loss_cycle_BAB.item(), 'SR_loss', SR_loss.item(), 'SM_loss', SM_loss.item())
-
-                        loss_Total.backward()
-                        self.optimizer_G.step()
-                        self.optimizer_R_A.step()
-
-                        ###### Discriminator A ######
-                        self.optimizer_D_A.zero_grad()
-                        # Real loss
-                        pred_real = self.netD_A(real_A)
-                        loss_D_real = self.config['Adv_lamda'] * self.MSE_loss(pred_real, self.target_real)
-                        # Fake loss
-                        fake_A = self.fake_A_buffer.push_and_pop(fake_A)
-                        pred_fake = self.netD_A(fake_A.detach())
-                        loss_D_fake = self.config['Adv_lamda'] * self.MSE_loss(pred_fake, self.target_fake)
-
-                        # Total loss
-                        loss_D_A = (loss_D_real + loss_D_fake)
-                        loss_D_A.backward()
-
-                        self.optimizer_D_A.step()
-                        ###################################
-
-                        ###### Discriminator B ######
-                        self.optimizer_D_B.zero_grad()
-
-                        # Real loss
-                        pred_real = self.netD_B(real_B)
-                        loss_D_real = self.config['Adv_lamda'] * self.MSE_loss(pred_real, self.target_real)
-
-                        # Fake loss
-                        fake_B = self.fake_B_buffer.push_and_pop(fake_B)
-                        pred_fake = self.netD_B(fake_B.detach())
-                        loss_D_fake = self.config['Adv_lamda'] * self.MSE_loss(pred_fake, self.target_fake)
-
-                        # Total loss
-                        loss_D_B = (loss_D_real + loss_D_fake)
-                        loss_D_B.backward()
-
-                        self.optimizer_D_B.step()
-                        ###################################
-
-                    else: #only  dir:  C
-                        self.optimizer_G.zero_grad()
-                        # GAN loss
-                        fake_B, pre_class = self.netG_A2B(real_A)
-                        pred_fake = self.netD_B(fake_B)
-                        loss_GAN_A2B = self.config['Adv_lamda'] * self.MSE_loss(pred_fake, self.target_real)
-                        classifier_loss = self.classifier_loss(pre_class, class_label)
-
-                        fake_A = self.netG_B2A(real_B)
-                        pred_fake = self.netD_A(fake_A)
-                        loss_GAN_B2A = self.config['Adv_lamda']*self.MSE_loss(pred_fake, self.target_real)
-
-                        # Cycle loss
-                        recovered_A = self.netG_B2A(fake_B)
-                        loss_cycle_ABA = self.config['Cyc_lamda'] * self.L1_loss(recovered_A, real_A)
-
-                        recovered_B = self.netG_A2B(fake_A)
-                        loss_cycle_BAB = self.config['Cyc_lamda'] * self.L1_loss(recovered_B, real_B)
-
-                        # Total loss
-                        loss_Total = loss_GAN_A2B + loss_GAN_B2A + loss_cycle_ABA + loss_cycle_BAB
-                        loss_Total.backward()
-                        self.optimizer_G.step()
-
-                        ###### Discriminator A ######
-                        self.optimizer_D_A.zero_grad()
-                        # Real loss
-                        pred_real = self.netD_A(real_A)
-                        loss_D_real = self.config['Adv_lamda'] * self.MSE_loss(pred_real, self.target_real)
-                        # Fake loss
-                        fake_A = self.fake_A_buffer.push_and_pop(fake_A)
-                        pred_fake = self.netD_A(fake_A.detach())
-                        loss_D_fake = self.config['Adv_lamda'] * self.MSE_loss(pred_fake, self.target_fake)
-
-                        # Total loss
-                        loss_D_A = (loss_D_real + loss_D_fake)
-                        loss_D_A.backward()
-
-                        self.optimizer_D_A.step()
-                        ###################################
-
-                        ###### Discriminator B ######
-                        self.optimizer_D_B.zero_grad()
-
-                        # Real loss
-                        pred_real = self.netD_B(real_B)
-                        loss_D_real = self.config['Adv_lamda'] * self.MSE_loss(pred_real, self.target_real)
-
-                        # Fake loss
-                        fake_B = self.fake_B_buffer.push_and_pop(fake_B)
-                        pred_fake = self.netD_B(fake_B.detach())
-                        loss_D_fake = self.config['Adv_lamda'] * self.MSE_loss(pred_fake, self.target_fake)
-
-                        # Total loss
-                        loss_D_B = (loss_D_real + loss_D_fake)
-                        loss_D_B.backward()
-
-                        self.optimizer_D_B.step()
-                        ###################################
-
-
-                else:                  # s dir :NC
-                    if self.config['regist']:    # NC+R
-                        self.optimizer_R_A.zero_grad()
-                        self.optimizer_G.zero_grad()
-                        #### regist sys loss
-                        fake_B, pre_class = self.netG_A2B(real_A, fundus)
-                        Trans = self.R_A(fake_B,real_B)
-                        SysRegist_A2B = self.spatial_transform(fake_B,Trans)
-                        SR_loss = self.config['Corr_lamda'] * self.L1_loss(SysRegist_A2B,real_B)###SR
-                        classifier_loss = self.classifier_loss(pre_class, class_label)
-                        pred_fake0 = self.netD_B(fake_B)
-                        adv_loss = self.config['Adv_lamda'] * self.MSE_loss(pred_fake0, self.target_real)
-                        ####smooth loss
-                        SM_loss = self.config['Smooth_lamda'] * smooothing_loss(Trans)
-                        toal_loss = SM_loss+adv_loss+classifier_loss+SR_loss
-                        toal_loss.backward()
-                        self.optimizer_R_A.step()
-                        self.optimizer_G.step()
-                        self.optimizer_D_B.zero_grad()
-                        with torch.no_grad():
-                            fake_B, pre_class = self.netG_A2B(real_A, fundus)
-                        pred_fake0 = self.netD_B(fake_B)
-                        pred_real = self.netD_B(real_B)
-                        loss_D_B = self.config['Adv_lamda'] * self.MSE_loss(pred_fake0, self.target_fake)+self.config['Adv_lamda'] * self.MSE_loss(pred_real, self.target_real)
-                        loss_D_B.backward()
-                        self.optimizer_D_B.step()
-
-
-
-                    else:        # only NC
-                        self.optimizer_G.zero_grad()
-                        fake_B, pre_class = self.netG_A2B(real_A, fundus)
-                        #### GAN aligin loss
-                        pred_fake = self.netD_B(fake_B)
-                        adv_loss = self.config['Adv_lamda'] * self.MSE_loss(pred_fake, self.target_real)
-                        adv_loss.backward()
-                        self.optimizer_G.step()
-                        ###### Discriminator B ######
-                        self.optimizer_D_B.zero_grad()
-                        # Real loss
-                        pred_real = self.netD_B(real_B)
-                        loss_D_real = self.config['Adv_lamda'] * self.MSE_loss(pred_real, self.target_real)
-                        # Fake loss
-                        fake_B = self.fake_B_buffer.push_and_pop(fake_B)
-                        pred_fake = self.netD_B(fake_B.clone().detach())
-                        loss_D_fake = self.config['Adv_lamda'] * self.MSE_loss(pred_fake, self.target_fake)
-                        classifier_loss = self.classifier_loss(pre_class, class_label)
-                        # Total loss
-                        loss_D_B = (loss_D_real + loss_D_fake)+classifier_loss
-                        loss_D_B.backward()
-                        self.optimizer_D_B.step()
-                        ###################################
-
-
-                self.logger.log({'loss_D_B': loss_D_B,'SR_loss':SR_loss, 'classifier_loss':classifier_loss},
-                       images={'real_A': real_A, 'real_B': real_B, 'fake_B': fake_B})#,'SR':SysRegist_A2B
-                # self.logger.log({'loss_D_B': loss_D_B, 'classifier_loss': classifier_loss},
-                #                 images={'real_A': real_A, 'real_B': real_B, 'fake_B': fake_B})  # ,'SR':SysRegist_A2B
-
-    #         # Save models checkpoints
-            #torch.save(self.R_A.state_dict(), self.config['save_root'] + 'Regist.pth')
-            #torch.save(netD_A.state_dict(), 'output/netD_A_3D.pth')
-            #torch.save(netD_B.state_dict(), 'output/netD_B_3D.pth')
-
+                self.optimizer_G.zero_grad()
+                pre_class = self.netG_A2B(real_A)
+                classifier_loss = self.classifier_loss(pre_class.float().squeeze(), class_label.float())
+                toal_loss = classifier_loss
+                toal_loss.backward()
+                self.optimizer_G.step()
+                self.logger.log({"class_loss":classifier_loss})#,'SR':SysRegist_A2B
 
             #############val###############
             with (torch.no_grad()):
-                MAE = 0
                 num = 0
                 count = 0
                 for i, batch in enumerate(self.val_data):
                     real_A = Variable(self.test_input_A.copy_(batch['A']))
-                    real_B = Variable(self.test_input_B.copy_(batch['B'])).detach().cpu().numpy().squeeze()
-                    fundus = Variable(self.test_input_C.copy_(batch['fundus']))
                     class_label = batch['class_label']
-                    fake_B, pre_label = self.netG_A2B(real_A, fundus)
-                    fake_B = fake_B.detach().cpu().numpy().squeeze()
+                    pre_label = self.netG_A2B(real_A)
                     pre_label = pre_label.detach().cpu().numpy().squeeze()
-                    count += (pre_label.argmax() == class_label).item()
-                    mae = self.MAE(fake_B,real_B)
-                    MAE += mae
+                    count += abs(pre_label - class_label.detach().cpu().numpy())
                     num += 1
-                acc = count/num
-                print ('Val MAE:',MAE/num, "acc:", acc, "best_acc", best_acc)
+                MAE = count / num
+                print("MAE:", MAE, "best_mae", best_mae)
 
             if not os.path.exists(self.config["save_root"]):
                 os.makedirs(self.config["save_root"])
             torch.save(self.netG_A2B.state_dict(), self.config['save_root'] + 'netG_A2B.pth')
-            if acc > best_acc:
+            if MAE < best_mae:
                 torch.save(self.netG_A2B.state_dict(), self.config['save_root'] + 'best_netG_A2B.pth')
-                best_acc = acc
+                best_mae = MAE
 
-    def test(self,):
-        self.netG_A2B.load_state_dict(torch.load(self.config['save_root'] + 'best_netG_A2B.pth'))
 
+    def test(self):
+        self.netG_A2B.load_state_dict(torch.load(self.config['checkpoint']))
+        data = []
+        count = 0
         with torch.no_grad():
-                SSIM = 0
-                num = 0
-                count = 0
-                class_label_ = []
-                pre_label_ = []
-                pre_class_ = []
-                for i, batch in enumerate(self.val_data):
+                for i, batch in enumerate(self.test_data):
                     real_A = Variable(self.test_input_A.copy_(batch['A']))
-                    real_B = Variable(self.test_input_B.copy_(batch['B'])).detach().cpu().numpy().squeeze()
-                    fundus = Variable(self.test_input_C.copy_(batch['fundus']))
                     class_label = batch['class_label']
-                    fake_B, pre_label = self.netG_A2B(real_A, fundus)
-                    fake_B = fake_B.detach().cpu().numpy().squeeze()
-                    norm_image = cv2.normalize(fake_B, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX,
-                                               dtype=cv2.CV_32F)
-                    cv2.imwrite(os.path.join(self.config['image_save'],batch["name"][0]), norm_image)
-                    pre_label = pre_label.detach().cpu().numpy().squeeze()
-                    count += sum((pre_label.argmax() == class_label)).item()
-                    ssim = compare_ssim(fake_B,real_B, data_range=fake_B.max() - fake_B.min())
-                    SSIM += ssim
-                    num += 1
-                    class_label_.append(class_label.item())
-                    pre_label_.append(pre_label)
-                    pre_class_.append(pre_label.argmax())
+                    eye = batch['eye']
+                    pre_label = self.netG_A2B(real_A)
+                    count += abs(pre_label.detach().cpu().numpy() - class_label.detach().cpu().numpy())
+                    data.append([eye.item(), class_label.item(), pre_label.item()])
+        print("MAE:", count/len(self.test_data))
+        self.draw(data)
 
-                print ('SSIM:',SSIM/num)
-                print('acc', count/num)
-                self.draw(class_label_, pre_label_)
-                self.performance(class_label_, pre_class_)
-
-    def draw(self, real, pred):
-        pred = np.array(pred)
-        fpr = dict()
-        tpr = dict()
-        roc_auc = dict()
-        real_ = np.zeros((len(real),3))
-        for i, number in enumerate(real):
-            real_[i, real[i]] = 1
-
-        for i in range(3):
-            fpr[i], tpr[i], _ = roc_curve(real_[:, i], pred[:, i])
-            roc_auc[i] = auc(fpr[i], tpr[i])
-        fpr["micro"], tpr["micro"], _ = roc_curve(real_.ravel(), pred.ravel())
-        roc_auc["micro"] = auc(fpr["micro"], tpr["micro"])
-
-        all_fpr = np.unique(np.concatenate([fpr[i] for i in range(3)]))
-        # Then interpolate all ROC curves at this points
-        mean_tpr = np.zeros_like(all_fpr)
-        for i in range(3):
-            mean_tpr += interp(all_fpr, fpr[i], tpr[i])
-        # Finally average it and compute AUC
-        mean_tpr /= 3
-        fpr["macro"] = all_fpr
-        tpr["macro"] = mean_tpr
-        roc_auc["macro"] = auc(fpr["macro"], tpr["macro"])
-
-        lw = 2
-        plt.figure()
-        plt.plot(fpr["micro"], tpr["micro"],
-                 label='micro-average ROC curve (area = {0:0.2f})'
-                       ''.format(roc_auc["micro"]),
-                 color='deeppink', linestyle=':', linewidth=4)
-
-        plt.plot(fpr["macro"], tpr["macro"],
-                 label='macro-average ROC curve (area = {0:0.2f})'
-                       ''.format(roc_auc["macro"]),
-                 color='navy', linestyle=':', linewidth=4)
-
-        colors = cycle(['aqua', 'darkorange', 'cornflowerblue'])
-        for i, color in zip(range(3), colors):
-            plt.plot(fpr[i], tpr[i], color=color, lw=lw,
-                     label='ROC curve of class {0} (area = {1:0.2f})'
-                           ''.format(i, roc_auc[i]))
-
-        plt.plot([0, 1], [0, 1], 'k--', lw=lw)
-        plt.xlim([0.0, 1.0])
-        plt.ylim([0.0, 1.05])
-        plt.xlabel('False Positive Rate')
-        plt.ylabel('True Positive Rate')
-        plt.title('multi-calss ROC')
-        plt.legend(loc="lower right")
-        plt.savefig(f'{self.config["save_root"]}/NC+R_32')
-
-
-    def performance(self, real, pred):
-        C = confusion_matrix(real, pred)
-        plt.matshow(C, cmap=plt.cm.Blues)
-        for i in range(len(C)):
-            for j in range(len(C)):
-                plt.annotate(C[j, i], xy=(i, j), horizontalalignment='center', verticalalignment='center')
-        plt.ylabel('True label')
-        plt.xlabel('Predicted label')
-        plt.savefig(f'{self.config["save_root"]}/confusion_matrix.png')
-        """sen"""
-        sen = []
-        for i in range(3):
-            tp = C[i][i]
-            fn = np.sum(C[i, :]) - tp
-            sen1 = tp / (tp + fn)
-            sen.append(sen1)
-
-        """spe"""
-        spe = []
-        for i in range(3):
-            number = np.sum(C[:, :])#26
-            tp = C[i][i] #13
-            fn = np.sum(C[i, :]) - tp #0
-            fp = np.sum(C[:, i]) - tp #4
-            tn = number - tp - fn - fp #9
-            spe1 = tn / (tn + fp)
-            spe.append(spe1)
-        print(sen)
-        print(spe)
+    """
+    def draw(self, data):
+       plt.figure(figsize=(20, 12))
+       plt.barh(np.arange(len(data)), data[:, 1], color=[(0.1, 0.5, 0.8, 0.6) for i in range(len(data_))], height=1)
+       plt.barh(np.arange(len(data)), -abs(data[:, 2]), color=[(0.1, 0.5, 0.8, 0.6) for i in range(len(data_))],height=1)
+       plt.plot([0, 0], [-0.5, len(data) - 0.5], color='black', linewidth=1, linestyle='--')
+       xticks_values = np.around(np.arange(-1, 1.2, 0.2), decimals=1)
+       xticks_labels = np.abs(xticks_values)
+       plt.xticks(xticks_values, xticks_labels)
+       plt.ylabel('Sample')
+       plt.xlabel('Values')
+       for i in range(len(data)):
+           diff = data[i, 2] - data[i, 1]  
+           color = (0.1, 0.7, 0.2, 0.6) if diff >= 0 else (0.8, 0.1, 0.1, 0.6)  
+           if diff >= 0:
+               plt.plot([data[i, 1], data[i, 1] + diff], [i, i], color=color, linestyle='-', linewidth=0.2)
+           else:
+               plt.plot([-abs(data[i, 2]), -abs(data[i, 2] - diff)], [i, i], color=color, linestyle='-', linewidth=0.2)
+       plt.text(0.5, -80, "The true vision value ",
+                ha='center', va='center', fontsize=14)
+       plt.text(-0.5, -80, "The vision value predicted by the model",
+                ha='center', va='center', fontsize=14)
+       import matplotlib.lines as mlines
+       positive_line = mlines.Line2D([], [], color=(0.1, 0.7, 0.2, 0.6), label='Positive Diff')
+       negative_line = mlines.Line2D([], [], color=(0.8, 0.1, 0.1, 0.6), label='Negative Diff')
+       plt.legend(
+           handles=[positive_line, negative_line],
+           loc='upper left')
+       plt.savefig(f'{self.config["save_root"]}/figure.png', dpi=1500)       
+    """ 

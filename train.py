@@ -2,7 +2,7 @@
 
 import argparse
 import os
-from trainer import Cyc_Trainer,Nice_Trainer,P2p_Trainer,Munit_Trainer,Unit_Trainer, fundus_Trainer
+from trainer import Cyc_Trainer,Nice_Trainer,P2p_Trainer,Munit_Trainer,Unit_Trainer, Cyc_Trainer1
 import yaml
 
 
@@ -19,7 +19,10 @@ def main():
     config = get_config(opts.config)
     
     if config['name'] == 'CycleGan':
-        trainer = Cyc_Trainer(config)
+        if config['type'] == 'classifier':
+          trainer = Cyc_Trainer(config)
+        else:
+          trainer = Cyc_Trainer1(config)
     elif config['name'] == 'Munit':
         trainer = Munit_Trainer(config)
     elif config['name'] == 'Unit':
@@ -30,9 +33,8 @@ def main():
         trainer = Ugat_Trainer(config)
     elif config['name'] == 'P2p':
         trainer = P2p_Trainer(config)
-    else:
-        trainer = fundus_Trainer()
 
+        
     trainer.test()
 
 

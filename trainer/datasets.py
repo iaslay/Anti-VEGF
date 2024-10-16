@@ -107,7 +107,7 @@ class EyeDataset(Dataset):
         return len(self.filename)
 
 
-def sort_by_number(elem):
+def number(elem):
     underscore_positions = np.where(np.array(list(elem)) == '_')[0]
     return float(elem[underscore_positions[0]+1:-4])
 
@@ -119,16 +119,16 @@ class EyeDataset1(Dataset):
         self.root = root
         self.type = type
         self.noise_level = noise_level
-        self.bname = os.listdir(f'{root}/before')
-        self.pname = os.listdir(f'{root}/after')
+        self.bname = sorted(os.listdir(f'{root}/before'))
+        self.pname = sorted(os.listdir(f'{root}/after'))
+        """
         if type == 'train':
             self.filename = np.load(f'{self.root}/train.npy', allow_pickle=True)
         elif type=='validation':
             self.filename = np.load(f'{self.root}/val.npy', allow_pickle=True)
         else:
             self.filename = np.load(f'{self.root}/test.npy', allow_pickle=True)
-        self.bname = sorted(self.bname, key=sort_by_number)
-        self.pname = sorted(self.pname, key=sort_by_number)
+        """
 
     def __getitem__(self, item):
         if self.noise_level == 0 and self.type=='train':
@@ -136,25 +136,25 @@ class EyeDataset1(Dataset):
             seed = np.random.randint(2147483647) # make a seed with numpy generator
             torch.manual_seed(seed)
             torch.cuda.manual_seed(seed)
-            img = cv2.imread(os.path.join(f'{root}/before', self.bname[self.filename[item]]), 0)
+            img = cv2.imread(os.path.join(f'{root}/before', self.bname[item]), 0)
             img = (img-127.5)/127.5
             item_A = self.transform2(img.astype(np.float32))
             torch.manual_seed(seed)
             torch.cuda.manual_seed(seed)
-            img = cv2.imread(os.path.join(f'{self.root}/after',self.pname[self.filename[item]]), 0)
+            img = cv2.imread(os.path.join(f'{self.root}/after',self.pname[item]), 0)
             img = (img - 127.5) / 127.5
             item_B = self.transform2(img.astype(np.float32))
         else:
             # print(self.filename[item])
-            img_A = cv2.imread(os.path.join(f'{self.root}/before',self.bname[self.filename[item]]), 0)
-            img_B = cv2.imread(os.path.join(f'{self.root}/after',self.pname[self.filename[item]]), 0)
+            img_A = cv2.imread(os.path.join(f'{self.root}/before',self.bname[item]), 0)
+            img_B = cv2.imread(os.path.join(f'{self.root}/after',self.pname[item]), 0)
             img_A = (img_A - 127.5) / 127.5
             img_B = (img_B - 127.5) / 127.5
             item_A = self.transform1(img_A.astype(np.float32))
             item_B = self.transform1(img_B.astype(np.float32))
-        class_label = sort_by_number(self.pname[self.filename[item]])
-        eye = sort_by_number(self.bname[self.filename[item]])
-        return {'A': item_A, 'B': item_B, 'name':self.filename[item], 'class_label':class_label, 'eye':eye}
 
+        class_label = number(self.pname[item])
+        eye = number(self.bname[item])
+        return {'A': item_A, 'B': item_B, 'name':item, 'class_label':class_label, 'eye':eye}
     def __len__(self):
-        return len(self.filename)
+        return len(self.bname)

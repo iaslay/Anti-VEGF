@@ -22,125 +22,7 @@ class ResidualBlock(nn.Module):
         return x + self.conv_block(x)
 
 
-# class Generator(nn.Module):
-#     def __init__(self, input_nc, output_nc, n_residual_blocks=9, num_classes=3):
-#         super(Generator, self).__init__()
-#
-#         # Initial convolution block
-#         model_head = [nn.ReflectionPad2d(3),
-#                       nn.Conv2d(input_nc, 64, 7),
-#                       nn.InstanceNorm2d(64),
-#                       nn.ReLU()]
-#
-#         # Downsampling
-#         in_features = 64
-#         out_features = in_features * 2
-#         for _ in range(2):
-#             model_head += [nn.Conv2d(in_features, out_features, 3, stride=2, padding=1),
-#                            nn.InstanceNorm2d(out_features),
-#                            nn.ReLU()]
-#             in_features = out_features
-#             out_features = in_features * 2
-#
-#         # Residual blocks
-#         model_body = []
-#         for _ in range(n_residual_blocks):
-#             model_body += [ResidualBlock(in_features)]
-#
-#         # Upsampling
-#         model_tail = []
-#         out_features = in_features // 2
-#         for _ in range(2):
-#             model_tail += [nn.ConvTranspose2d(in_features, out_features, 3, stride=2, padding=1, output_padding=1),
-#                            nn.InstanceNorm2d(out_features),
-#                            nn.ReLU()]
-#             in_features = out_features
-#             out_features = in_features // 2
-#
-#         # Output layer
-#         model_tail += [nn.ReflectionPad2d(3),
-#                        nn.Conv2d(64, output_nc, 7),
-#                        nn.Tanh()]
-#
-#         self.model_head = nn.Sequential(*model_head)
-#         self.model_body = nn.Sequential(*model_body)
-#         self.model_tail = nn.Sequential(*model_tail)
-#         self.classifier_body = nn.Sequential(
-#             nn.Conv2d(256, 128, 3, 1, 1),
-#             nn.MaxPool2d(3, 2, 1),
-#             nn.Conv2d(128, 64, 3, 1, 1),
-#             nn.MaxPool2d(3, 2, 1)
-#         )
-#
-#         self.classifier_tail = nn.Sequential(
-#             nn.Linear(64, 128),
-#             nn.ReLU(),
-#             nn.Linear(128, num_classes),
-#         )
-#         self.avgpool = nn.AvgPool2d(16, stride=1)
-#
-#     def forward(self, x):
-#         x = self.model_head(x)
-#         x = self.model_body(x) #[1, 256, 64, 64]
-#         classifier_x = x.detach()
-#         classifier_x = self.classifier_body(classifier_x)
-#         classifier_x = self.avgpool(classifier_x)
-#         classifier_x = classifier_x.view(classifier_x.size(0), -1)
-#         classifier_x = self.classifier_tail(classifier_x)
-#         x = self.model_tail(x)
-#         # return x, classifier_x
-#         return classifier_x
-"""原始"""
-# class Generator(nn.Module):
-#     def __init__(self, input_nc, output_nc, n_residual_blocks=9):
-#         super(Generator, self).__init__()
-#
-#         # Initial convolution block
-#         model_head = [nn.ReflectionPad2d(3),
-#                       nn.Conv2d(input_nc, 64, 7),
-#                       nn.InstanceNorm2d(64),
-#                       nn.ReLU(inplace=True)]
-#
-#         # Downsampling
-#         in_features = 64
-#         out_features = in_features * 2
-#         for _ in range(2):
-#             model_head += [nn.Conv2d(in_features, out_features, 3, stride=2, padding=1),
-#                            nn.InstanceNorm2d(out_features),
-#                            nn.ReLU(inplace=True)]
-#             in_features = out_features
-#             out_features = in_features * 2
-#
-#         # Residual blocks
-#         model_body = []
-#         for _ in range(n_residual_blocks):
-#             model_body += [ResidualBlock(in_features)]
-#
-#         # Upsampling
-#         model_tail = []
-#         out_features = in_features // 2
-#         for _ in range(2):
-#             model_tail += [nn.ConvTranspose2d(in_features, out_features, 3, stride=2, padding=1, output_padding=1),
-#                            nn.InstanceNorm2d(out_features),
-#                            nn.ReLU(inplace=True)]
-#             in_features = out_features
-#             out_features = in_features // 2
-#
-#         # Output layer
-#         model_tail += [nn.ReflectionPad2d(3),
-#                        nn.Conv2d(64, output_nc, 7),
-#                        nn.Tanh()]
-#
-#         self.model_head = nn.Sequential(*model_head)
-#         self.model_body = nn.Sequential(*model_body)
-#         self.model_tail = nn.Sequential(*model_tail)
-#
-#     def forward(self, x):
-#         x = self.model_head(x)
-#         x = self.model_body(x)
-#         x = self.model_tail(x)
-#
-#         return x
+
 
 class Generator(nn.Module):
     def __init__(self, input_nc, output_nc, n_residual_blocks=4, num_classes=3):
@@ -210,80 +92,79 @@ class Generator(nn.Module):
         return x, classifier_x
 #         return classifier_x
 
-# class Generator(nn.Module):
-#     def __init__(self, input_nc, output_nc, n_residual_blocks=6, num_classes=1):
-#         super(Generator, self).__init__()
-#         # Initial convolution block
-#         model_head = [nn.ReflectionPad2d(3),
-#                       nn.Conv2d(input_nc, 64, 7),
-#                       nn.InstanceNorm2d(64),
-#                       nn.ReLU(inplace=True)]
-#
-#         # Downsampling
-#         in_features = 64
-#         out_features = in_features * 2
-#         self.model_head1 = nn.Sequential(CAPatchEmbedding(7,4, in_features,CAPE=True,
-#                                             embed_dim=out_features),
-#                            ParFormerBlock(dim=out_features, change=False),
-#                                          ParFormerBlock(dim=out_features))
-#
-#         in_features = out_features
-#         out_features = in_features * 2
-#         self.model_head2 = nn.Sequential(CAPatchEmbedding(3,2 , in_features,CAPE=True,
-#                                             embed_dim=out_features),
-#                            ParFormerBlock(dim=out_features,change=False),
-#                                          ParFormerBlock(dim=out_features))
-#
-#
-#         in_features = out_features
-#
-#         # Residual blocks
-#         model_body = []
-#         for _ in range(n_residual_blocks):
-#             model_body += [ResidualBlock(in_features)]
-#             model_body += [ParFormerBlock(dim=in_features)]
-#             model_body += [ParFormerBlock(dim=in_features)]
-#
-#         # Upsampling
-#         self.model_head = nn.Sequential(*model_head)
-#         self.model_body = nn.Sequential(*model_body)
-#         # self.model_tail = nn.Sequential(*model_tail)
-#
-#         self.classifier_body1 = nn.Sequential(
-#             nn.Conv2d(128, 128, 3, 1, 1),
-#             nn.MaxPool2d(2, 2),
-#             nn.Conv2d(128, 64, 3, 1, 1),
-#             nn.MaxPool2d(2, 2),
-#         )
-#
-#         self.classifier_body2 = nn.Sequential(
-#             nn.Conv2d(256, 128, 3, 1, 1),
-#             nn.MaxPool2d(2, 2),
-#             nn.Conv2d(128, 64, 3, 1, 1),
-#         )
-#
-#         self.classifier_tail = nn.Sequential(
-#             nn.Linear(64*16*16, 2048),
-#             nn.ReLU(),
-#             nn.Linear(2048, 2048),
-#             nn.Linear(2048, 256),
-#             nn.Linear(256, 64),
-#             nn.Linear(64, num_classes)
-#         )
-#
-#     def forward(self, x):
-#         x = self.model_head(x)
-#         x1 = self.model_head1(x)
-#         x2 = self.model_head2(x1)
-#         x = self.model_body(x2) #[1, 256, 64, 64]
-#         classifier_x = x.detach()
-#         classifier_x1 = x1.detach()
-#         classifier_x = self.classifier_body2(classifier_x)
-#         classifier_x1 = self.classifier_body1(classifier_x1)
-#         classifier_x = classifier_x + classifier_x1
-#         classifier_x = classifier_x.contiguous().view(classifier_x.size(0), -1)
-#         classifier_x = self.classifier_tail(classifier_x)
-#         return classifier_x
+class Generator1(nn.Module):
+    def __init__(self, input_nc, output_nc, n_residual_blocks=4, num_classes=1):
+        super(Generator1, self).__init__()
+        # Initial convolution block
+        model_head = [nn.ReflectionPad2d(3),
+                      nn.Conv2d(input_nc, 64, 7),
+                      nn.InstanceNorm2d(64),
+                      nn.ReLU(inplace=True)]
+
+        # Downsampling
+        in_features = 64
+        out_features = in_features * 2
+        self.model_head1 = nn.Sequential(CAPatchEmbedding(7,4, in_features,CAPE=True,
+                                            embed_dim=out_features),
+                           ParFormerBlock(dim=out_features, change=False),
+                                         ParFormerBlock(dim=out_features))
+
+        in_features = out_features
+        out_features = in_features * 2
+        self.model_head2 = nn.Sequential(CAPatchEmbedding(3,2 , in_features,CAPE=True,
+                                            embed_dim=out_features),
+                           ParFormerBlock(dim=out_features,change=False),
+                                         ParFormerBlock(dim=out_features))
+
+
+        in_features = out_features
+
+        # Residual blocks
+        model_body = []
+        for _ in range(n_residual_blocks):
+            model_body += [ResidualBlock(in_features)]
+            model_body += [ParFormerBlock(dim=in_features)]
+            model_body += [ParFormerBlock(dim=in_features)]
+
+        # Upsampling
+        self.model_head = nn.Sequential(*model_head)
+        self.model_body = nn.Sequential(*model_body)
+
+        self.classifier_body1 = nn.Sequential(
+            nn.Conv2d(128, 128, 3, 1, 1),
+            nn.MaxPool2d(2, 2),
+            nn.Conv2d(128, 64, 3, 1, 1),
+            nn.MaxPool2d(2, 2),
+        )
+
+        self.classifier_body2 = nn.Sequential(
+            nn.Conv2d(256, 128, 3, 1, 1),
+            nn.MaxPool2d(2, 2),
+            nn.Conv2d(128, 64, 3, 1, 1),
+        )
+
+        self.classifier_tail = nn.Sequential(
+            nn.Linear(64*16*16, 2048),
+            nn.ReLU(),
+            nn.Linear(2048, 2048),
+            nn.Linear(2048, 256),
+            nn.Linear(256, 64),
+            nn.Linear(64, num_classes)
+        )
+
+    def forward(self, x):
+        x = self.model_head(x)
+        x1 = self.model_head1(x)
+        x2 = self.model_head2(x1)
+        x = self.model_body(x2) #[1, 256, 64, 64]
+        classifier_x = x.detach()
+        classifier_x1 = x1.detach()
+        classifier_x = self.classifier_body2(classifier_x)
+        classifier_x1 = self.classifier_body1(classifier_x1)
+        classifier_x = classifier_x + classifier_x1
+        classifier_x = classifier_x.contiguous().view(classifier_x.size(0), -1)
+        classifier_x = self.classifier_tail(classifier_x)
+        return classifier_x
 
 
 class Discriminator(nn.Module):
@@ -435,42 +316,42 @@ class Attention(torch.nn.Module):
 
         return x
 
-# class Attention(nn.Module):
-#     """ Vanilla self-attention from Transformer: https://arxiv.org/abs/1706.03762.
-#     Modified from timm.
-#     """
-#     def __init__(self, dim, num_heads=None, head_dim=32, qk_scale=None, qkv_bias=True,
-#                  attn_drop=0., proj_drop=0., proj_bias=False, **kwargs):
-#         super().__init__()
-#
-#         self.head_dim = head_dim
-#         self.scale = head_dim ** -0.5
-#
-#         self.num_heads = num_heads if num_heads else dim // head_dim
-#         if self.num_heads == 0:
-#             self.num_heads = 1
-#
-#         self.attention_dim = self.num_heads * self.head_dim
-#
-#         self.qkv = nn.Linear(dim, self.attention_dim * 3, bias=qkv_bias)
-#         self.attn_drop = nn.Dropout(attn_drop)
-#         self.proj = nn.Linear(self.attention_dim, dim, bias=proj_bias)
-#         self.proj_drop = nn.Dropout(proj_drop)
-#
-#     def forward(self, x):
-#         B, H, W, C = x.shape
-#         N = H * W
-#         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
-#         q, k, v = qkv.unbind(0)  # make torchscript happy (cannot use tensor as tuple)
-#
-#         attn = (q.transpose(-2, -1).contiguous() @ k) * self.scale
-#         attn = attn.softmax(dim=-1)
-#         attn = self.attn_drop(attn)
-#
-#         x = (v @ attn).transpose(1, 2).contiguous().reshape(B, H, W, self.attention_dim)
-#         x = self.proj(x)
-#         x = self.proj_drop(x)
-#         return x
+class Attention1(nn.Module):
+    """ Vanilla self-attention from Transformer: https://arxiv.org/abs/1706.03762.
+    Modified from timm.
+    """
+    def __init__(self, dim, num_heads=None, head_dim=32, qk_scale=None, qkv_bias=True,
+                 attn_drop=0., proj_drop=0., proj_bias=False, **kwargs):
+        super().__init__()
+
+        self.head_dim = head_dim
+        self.scale = head_dim ** -0.5
+
+        self.num_heads = num_heads if num_heads else dim // head_dim
+        if self.num_heads == 0:
+            self.num_heads = 1
+
+        self.attention_dim = self.num_heads * self.head_dim
+
+        self.qkv = nn.Linear(dim, self.attention_dim * 3, bias=qkv_bias)
+        self.attn_drop = nn.Dropout(attn_drop)
+        self.proj = nn.Linear(self.attention_dim, dim, bias=proj_bias)
+        self.proj_drop = nn.Dropout(proj_drop)
+
+    def forward(self, x):
+        B, H, W, C = x.shape
+        N = H * W
+        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
+        q, k, v = qkv.unbind(0)  # make torchscript happy (cannot use tensor as tuple)
+
+        attn = (q.transpose(-2, -1).contiguous() @ k) * self.scale
+        attn = attn.softmax(dim=-1)
+        attn = self.attn_drop(attn)
+
+        x = (v @ attn).transpose(1, 2).contiguous().reshape(B, H, W, self.attention_dim)
+        x = self.proj(x)
+        x = self.proj_drop(x)
+        return x
 
 class SepConv(nn.Module):
     r"""
@@ -519,31 +400,31 @@ class MlpHead(nn.Module):
         x = self.fc2(x)
         return x
 
-#
-# class Mlp(nn.Module):
-#     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0., linear=False):
-#         super().__init__()
-#         out_features = out_features or in_features
-#         hidden_features = hidden_features or in_features
-#         self.fc1 = nn.Linear(in_features, hidden_features)
-#         self.act = act_layer()
-#         self.fc2 = nn.Linear(hidden_features, out_features)
-#         self.drop = nn.Dropout(drop)
-#
-#     def forward(self, x):
-#         x = self.fc1(x)
-#         x = self.act(x)
-#         x = self.drop(x)
-#         x = self.fc2(x)
-#         x = self.drop(x)
-#         return x
+
+class Mlp1(nn.Module):
+    def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0., linear=False):
+        super().__init__()
+        out_features = out_features or in_features
+        hidden_features = hidden_features or in_features
+        self.fc1 = nn.Linear(in_features, hidden_features)
+        self.act = act_layer()
+        self.fc2 = nn.Linear(hidden_features, out_features)
+        self.drop = nn.Dropout(drop)
+
+    def forward(self, x):
+        x = self.fc1(x)
+        x = self.act(x)
+        x = self.drop(x)
+        x = self.fc2(x)
+        x = self.drop(x)
+        return x
 
 class ParFormerBlock(nn.Module):
 
     def __init__(self, dim, act_layer=nn.GELU,
                  norm_layer=nn.LayerNorm,
-                 tokenmixer1=Attention, tokenmixer2=SepConv,
-                 mlp=Mlp, mlp_ratio=4., layer_scale_init_value=1e-6,
+                 tokenmixer1=Attention1, tokenmixer2=SepConv,
+                 mlp=Mlp1, mlp_ratio=4., layer_scale_init_value=1e-6,
                  drop=0., drop_path=0., shift=False,
                  block_num=0, change=True):
         super().__init__()
@@ -551,7 +432,6 @@ class ParFormerBlock(nn.Module):
         cs1 = dim // 2
         cs2 = dim // 2
         self.split_index = (cs1, cs2)
-        # NOTE: drop path for stochastic depth, we shall see if this is better than dropout here
         self.drop_path1 = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.drop_path2 = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.norm1 = norm_layer(dim)

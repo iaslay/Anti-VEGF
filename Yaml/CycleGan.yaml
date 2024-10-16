@@ -1,10 +1,11 @@
 #####
 name: CycleGan
-bidirect: False #Unidirectional or bidirectional
-regist: True   # With or without registration network
-noise_level: 1  #  noise level
-port: 6019   #  port parameters
-save_root: 'output/Long-term/'
+type: Regression #classifier or Regression
+bidirect: False 
+regist: True   
+noise_level: 1  
+port: 6019   
+save_root: 'output/Long-term/'   
 image_save: 'output/Long-term/pred'
 image_save1: 'output/Long-term/before'
 image_save2: 'output/Long-term/after'
@@ -16,11 +17,10 @@ Smooth_lamda: 10
 epoch: 0        # starting epoch
 n_epochs: 200      # How often do you want to display output images during training
 batchSize: 30        # size of the batches
-dataroot: 'data/Long-term'     # root directory of the dataset
-val_dataroot: 'data/Long-term'
-checkpoint: 'checkpoint/Long_best_netG_A2B.pth'
-#lr: 0.001                   # initial learning rate
-lr: 0.0001
+dataroot: 'data/Regression/Long-term'     # root directory of the dataset
+val_dataroot: 'data/Regression/Long-term' # root directory of the dataset
+checkpoint: 'checkpoint/Regression_Long_best_netG_A2B.pth'  # root directory of the checkpoin
+lr: 0.0001 # initial learning rate
 decay_epoch: 20            # epoch to start linearly decaying the learning rate to 0
 size: 256                # size of the data crop
 input_nc: 1         
