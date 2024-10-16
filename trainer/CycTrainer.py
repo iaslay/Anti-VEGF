@@ -483,7 +483,7 @@ class Cyc_Trainer():
         axin.set_ylim([0.8, 1.0])
         ax.indicate_inset_zoom(axin)
         axin.grid(True)
-        plt.savefig(f'{self.config["save_root"]}/NC+R_32', dpi=700)
+        plt.savefig(f'{self.config["save_root"]}/ROC.png', dpi=700)
 
         # Output the 95% confidence intervals
         for i in range(3):
@@ -650,35 +650,36 @@ class Cyc_Trainer1():
                     count += abs(pre_label.detach().cpu().numpy() - class_label.detach().cpu().numpy())
                     data.append([eye.item(), class_label.item(), pre_label.item()])
         print("MAE:", count/len(self.test_data))
-        self.draw(data)
+        self.draw(np.array(data))
 
-    """
+    
     def draw(self, data):
-       plt.figure(figsize=(20, 12))
-       plt.barh(np.arange(len(data)), data[:, 1], color=[(0.1, 0.5, 0.8, 0.6) for i in range(len(data_))], height=1)
-       plt.barh(np.arange(len(data)), -abs(data[:, 2]), color=[(0.1, 0.5, 0.8, 0.6) for i in range(len(data_))],height=1)
-       plt.plot([0, 0], [-0.5, len(data) - 0.5], color='black', linewidth=1, linestyle='--')
-       xticks_values = np.around(np.arange(-1, 1.2, 0.2), decimals=1)
-       xticks_labels = np.abs(xticks_values)
-       plt.xticks(xticks_values, xticks_labels)
-       plt.ylabel('Sample')
-       plt.xlabel('Values')
-       for i in range(len(data)):
-           diff = data[i, 2] - data[i, 1]  
-           color = (0.1, 0.7, 0.2, 0.6) if diff >= 0 else (0.8, 0.1, 0.1, 0.6)  
-           if diff >= 0:
-               plt.plot([data[i, 1], data[i, 1] + diff], [i, i], color=color, linestyle='-', linewidth=0.2)
-           else:
-               plt.plot([-abs(data[i, 2]), -abs(data[i, 2] - diff)], [i, i], color=color, linestyle='-', linewidth=0.2)
-       plt.text(0.5, -80, "The true vision value ",
+        linewidth = 1 if len(data) < 300 else 0.2
+        plt.figure(figsize=(20, 12))
+        plt.barh(np.arange(len(data)), data[:, 1], color=[(0.1, 0.5, 0.8, 0.6) for i in range(len(data))], height=1)
+        plt.barh(np.arange(len(data)), -abs(data[:, 2]), color=[(0.1, 0.5, 0.8, 0.6) for i in range(len(data))],height=1)
+        plt.plot([0, 0], [-0.5, len(data) - 0.5], color='black', linewidth=1, linestyle='--')
+        xticks_values = np.around(np.arange(-1, 1.2, 0.2), decimals=1)
+        xticks_labels = np.abs(xticks_values)
+        plt.xticks(xticks_values, xticks_labels)
+        plt.ylabel('Sample')
+        plt.xlabel('Values')
+        for i in range(len(data)):
+            diff = data[i, 2] - data[i, 1]
+            color = (0.1, 0.7, 0.2, 0.6) if diff >= 0 else (0.8, 0.1, 0.1, 0.6)
+            if diff >= 0:
+                plt.plot([data[i, 1], data[i, 1] + diff], [i, i], color=color, linestyle='-', linewidth=linewidth)
+            else:
+                plt.plot([-abs(data[i, 2]), -abs(data[i, 2] - diff)], [i, i], color=color, linestyle='-', linewidth=linewidth)
+        plt.text(0.5, -80, "The true vision value ",
                 ha='center', va='center', fontsize=14)
-       plt.text(-0.5, -80, "The vision value predicted by the model",
+        plt.text(-0.5, -80, "The vision value predicted by the model",
                 ha='center', va='center', fontsize=14)
-       import matplotlib.lines as mlines
-       positive_line = mlines.Line2D([], [], color=(0.1, 0.7, 0.2, 0.6), label='Positive Diff')
-       negative_line = mlines.Line2D([], [], color=(0.8, 0.1, 0.1, 0.6), label='Negative Diff')
-       plt.legend(
-           handles=[positive_line, negative_line],
-           loc='upper left')
-       plt.savefig(f'{self.config["save_root"]}/figure.png', dpi=1500)       
-    """ 
+        import matplotlib.lines as mlines
+        positive_line = mlines.Line2D([], [], color=(0.1, 0.7, 0.2, 0.6), label='Positive Diff')
+        negative_line = mlines.Line2D([], [], color=(0.8, 0.1, 0.1, 0.6), label='Negative Diff')
+        plt.legend(
+            handles=[positive_line, negative_line],
+            loc='upper left')
+        plt.savefig(f'{self.config["save_root"]}/figure.png', dpi=1500)
+     
