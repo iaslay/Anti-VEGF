@@ -341,6 +341,7 @@ class Cyc_Trainer():
                 all_pre_labels = np.array(all_pre_labels)
                 acc = count/num
                 num_classes = 3
+                youden_indices = []
                 for class_idx in range(num_classes):
                   binary_labels = (all_class_labels == class_idx).astype(int)
                   binary_probabilities = all_pre_labels[:, class_idx]
@@ -358,7 +359,7 @@ class Cyc_Trainer():
                 os.makedirs(self.config["save_root"])
             torch.save(self.netG_A2B.state_dict(), self.config['save_root'] + 'netG_A2B.pth')
             if max(youden_indices) > best_youden_indices_:
-                print("best_youden_index ",youden_indices)
+                print("best_youden_index ",max(youden_indices) )
                 torch.save(self.netG_A2B.state_dict(), self.config['save_root'] + 'best_netG_A2B.pth')
                 best_youden_indices_ = youden_indices
 
