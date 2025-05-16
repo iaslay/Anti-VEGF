@@ -109,6 +109,7 @@ class Cyc_Trainer():
     def train(self):
         ###### Training ######
         best_acc, acc, best_mae = 0, -1, 100
+        best_youden_indices_ = 0
         for epoch in range(self.config['epoch'], self.config['n_epochs']):
             for i, batch in enumerate(self.dataloader):
                 # Set model input
@@ -315,28 +316,51 @@ class Cyc_Trainer():
                 MAE = 0
                 num = 0
                 count = 0
+                all_class_labels = []  # 存储真实标签
+                all_pre_labels = []    # 存储预测概率
                 for i, batch in enumerate(self.val_data):
                     real_A = Variable(self.test_input_A.copy_(batch['A']))
                     real_B = Variable(self.test_input_B.copy_(batch['B'])).detach().cpu().numpy().squeeze()
                     class_label = batch['class_label']
                     fake_B, pre_label = self.netG_A2B(real_A)
+                    
+                    pre_label_prob = torch.softmax(pre_label, dim=1)  # 假设 pre_label 是 logits
+                    pre_label_prob = pre_label_prob.detach().cpu().numpy().squeeze()  # 获取所有类别的概率
+                    
+                    # 存储真实标签和预测概率
+                    all_class_labels.append(class_label.item())
+                    all_pre_labels.append(pre_label_prob)
+                    
                     fake_B = fake_B.detach().cpu().numpy().squeeze()
                     pre_label = pre_label.detach().cpu().numpy().squeeze()
                     count += (pre_label.argmax() == class_label).item()
                     mae = self.MAE(fake_B,real_B)
                     MAE += mae
                     num += 1
+                all_class_labels = np.array(all_class_labels)
+                all_pre_labels = np.array(all_pre_labels)
                 acc = count/num
-                print ('Val MAE:',MAE/num, "acc:", acc, "best_acc", best_acc)
+                num_classes = 3
+                for class_idx in range(num_classes):
+                  binary_labels = (all_class_labels == class_idx).astype(int)
+                  binary_probabilities = all_pre_labels[:, class_idx]
+                  fpr, tpr, threshold = roc_curve(binary_labels, binary_probabilities)
+                  roc_auc = auc(fpr, tpr)
+                  youden_index = tpr - fpr
+                  best_youden_index_idx = np.argmax(youden_index)
+                  best_youden_index = youden_index[best_youden_index_idx]
+                  youden_indices.append(best_youden_index)
+                
+                print ('Val MAE:',MAE/num, "acc:", acc, "best_acc", best_acc, "best_youden_index", max(youden_indices))
 
 
             if not os.path.exists(self.config["save_root"]):
                 os.makedirs(self.config["save_root"])
             torch.save(self.netG_A2B.state_dict(), self.config['save_root'] + 'netG_A2B.pth')
-            if acc > best_acc:
-                print("best MAE",acc)
+            if max(youden_indices) > best_youden_indices_:
+                print("best_youden_index ",youden_indices)
                 torch.save(self.netG_A2B.state_dict(), self.config['save_root'] + 'best_netG_A2B.pth')
-                best_acc = acc
+                best_youden_indices_ = youden_indices
 
     def test(self,):
         self.netG_A2B.load_state_dict(torch.load(self.config['checkpoint']))
