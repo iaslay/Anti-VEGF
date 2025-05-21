@@ -680,7 +680,7 @@ class Cyc_Trainer1():
 
 
        # Loss plot
-        #self.logger = Logger(config['name'],config['port'],config['n_epochs'], len(self.dataloader))
+        self.logger = Logger(config['name'],config['port'],config['n_epochs'], len(self.dataloader))
 
     def train(self):
         ###### Training ######
